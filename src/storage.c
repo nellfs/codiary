@@ -36,9 +36,10 @@ StorageError storage_create_app_directory(void) {
 
   if (access(appdir, F_OK) != 0) {
     int status = mkdir(appdir, 0755);
-    if (status != 0)
+    if (status != 0) {
       printf("status: %d\n ", status);
-    return STORAGE_FAILED_TO_CREATE_DIRECTORY;
+      return STORAGE_FAILED_TO_CREATE_DIRECTORY;
+    }
   }
 
   storage_free_dir(appdir);
