@@ -1,11 +1,115 @@
 #include "storage.h"
+#include "datetime.h"
 #include "string.h"
 #include <linux/limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/stat.h>
 #include <unistd.h>
-#include <time.h>
+
+StorageError storage_get_dir(char *directory) {
+  char cwd[PATH_MAX];
+
+  if (getcwd(cwd, sizeof(cwd)) == NULL) {
+    perror("getcwd");
+    return STORAGE_ERR_GETCWD_FAILED;
+  }
+
+  const char *suffix = "/.dia";
+  if (strlen(cwd) + strlen(suffix) + 1 > PATH_MAX) {
+    fprintf(stderr, "Path too long\n");
+    return STORAGE_ERR_PATH_TOO_LONG;
+  }
+
+  char dia_dir[PATH_MAX];
+  int n = snprintf(dia_dir, sizeof(dia_dir), "%s/.dia", cwd);
+
+  if (n < 0 || n >= (int)sizeof(dia_dir)) {
+    fprintf(stderr, "path too long\n");
+    return STORAGE_ERR_PATH_TOO_LONG;
+  }
+
+  if (access(dia_dir, F_OK) == 0) {
+    directory = dia_dir;
+    return STORAGE_DIR_ALREADY_CREATED;
+  }
+  return STORAGE_OK;
+}
+
+StorageError storage_create_dir(void) {
+  char dia_dir[PATH_MAX];
+  StorageError err = storage_get_dir(dia_dir);
+  if (err != STORAGE_OK) {
+    return err;
+  }
+
+  if (mkdir(dia_dir, 0755) != 0) {
+    perror("mkdir");
+    return STORAGE_FAILED_TO_CREATE_DIRECTORY;
+  }
+
+  return STORAGE_OK;
+}
+
+StorageError storage_init(void) {
+  StorageError err = storage_create_dir();
+  if (err != STORAGE_OK) {
+    return err;
+  }
+  return STORAGE_OK;
+}
+
+StorageError storage_append_diary_file(const char **out_dir) {
+  return STORAGE_OK;
+}
+
+StorageError storage_get_current_diary_file(char *out_dir) {
+  char dia_dir[PATH_MAX];
+
+  StorageError storage_err = storage_get_dir(dia_dir);
+  if (storage_err != STORAGE_OK && storage_err != STORAGE_DIR_ALREADY_CREATED) {
+     return storage_err;
+  }
+
+  char date[16];
+  StorageError datetime_err = datetime_get_current_date(date, sizeof(date));
+  if (datetime_err != STORAGE_OK) {
+     return datetime_err;
+  }
+
+
+  const char *extension = ".txt";
+
+  char fullpath[PATH_MAX];
+
+  snprintf(fullpath, sizeof(fullpath), "%s%s%s", dia_dir, date, extension);
+
+  out_dir = fullpath;
+  return STORAGE_OK;
+}
+
+// StorageError storage_append_diary_text(void) {
+//     FILE *fptr = fopen(fullpath, "a");
+//       free(fullpath);
+//       fullpath = NULL;
+
+//       if (!fptr) {
+//         return STORAGE_ERR_NO_PERMISSION;
+//       }
+
+//       char timestamp[32];
+//       get_iso8601(timestamp, sizeof(timestamp));
+
+//       fprintf(fptr, "%s\n%s", timestamp, text);
+//       fclose(fptr);
+
+//     return STORAGE_OK;
+// }
+
+void storage_free_dir(const char *dir) {
+  free((void *)dir);
+  dir = NULL;
+}
 
 const char *storage_strerror(StorageError err) {
   switch (err) {
@@ -27,114 +131,10 @@ const char *storage_strerror(StorageError err) {
     return "storage permission error";
   case STORAGE_FAILED_TO_CREATE_DIRECTORY:
     return "storage failed to create directory";
+  case STORAGE_ERR_GETCWD_FAILED:
+    return "storage failed to get current directory";
+  case STORAGE_DIR_ALREADY_CREATED:
+    return "storage directory already created";
   }
   return "unknown error";
-}
-
-//TODO: move this function
-void get_iso8601(char *buffer, size_t size) {
-    time_t now = time(NULL);
-    struct tm *t = gmtime(&now);
-    strftime(buffer, size, "%Y-%m-%dT%H:%M:%SZ", t);
-}
-
-StorageError storage_create_app_directory(void) {
-  const char *appdir;
-  storage_alloc_app_dir(&appdir);
-
-  if (access(appdir, F_OK) != 0) {
-    int status = mkdir(appdir, 0755);
-    if (status != 0) {
-      printf("status: %d\n ", status);
-      return STORAGE_FAILED_TO_CREATE_DIRECTORY;
-    }
-  }
-
-  storage_free_dir(appdir);
-  return STORAGE_OK;
-}
-
-StorageError storage_init(void) {
-  StorageError err = storage_create_app_directory();
-  if (err != STORAGE_OK) {
-    return err;
-  }
-  return STORAGE_OK;
-};
-
-StorageError storage_alloc_app_dir(const char **out_dir) {
-  if (out_dir == NULL) {
-    return STORAGE_ERR_INVALID_ARGUMENT;
-  }
-
-  const char *location = getenv("HOME");
-  if (!location) {
-    return STORAGE_ERR_NOT_FOUND;
-  }
-
-  const char *app_path = ".local/share/dia";
-
-  size_t needed_len = strlen(location) + strlen(app_path) + 2;
-
-  if (needed_len > PATH_MAX) {
-    return STORAGE_ERR_PATH_TOO_LONG;
-  }
-
-  char *full_path = (char *)malloc(needed_len);
-
-  if (full_path == NULL) {
-    return STORAGE_ERR_MALLOC_FAIL;
-  }
-
-  int len = snprintf(full_path, needed_len, "%s/%s", location, app_path);
-
-  if (len < 0 || (size_t)len > needed_len) {
-    storage_free_dir(full_path);
-    return STORAGE_ERR_INVALID_PATH;
-  }
-
-  *out_dir = full_path;
-  return STORAGE_OK;
-}
-
-StorageError storage_create_file(const char *filename, const char *text) {
-  const char *appdir;
-  StorageError err = storage_alloc_app_dir(&appdir);
-  if (err != STORAGE_OK) {
-    return err;
-  }
-
-  size_t path_len = strlen(appdir) + 1 + strlen(filename) + 1;
-
-  char *fullpath = malloc(path_len);
-  if (!fullpath) {
-    storage_free_dir(appdir);
-    return STORAGE_ERR_MALLOC_FAIL;
-  }
-
-  snprintf(fullpath, path_len, "%s/%s.txt", appdir, filename);
-
-  storage_free_dir(appdir);
-
-  FILE *fptr = fopen(fullpath, "a");
-  free(fullpath);
-  fullpath = NULL;
-
-  if (!fptr) {
-    return STORAGE_ERR_NO_PERMISSION;
-  }
-
-  char timestamp[32];
-
-  get_iso8601(timestamp, sizeof(timestamp));
-
-  fprintf(fptr, "%s\n%s\n", timestamp, text);
-  fclose(fptr);
-
-  return STORAGE_OK;
-}
-
-void storage_free_dir(const char *dir) {
-  free((void *)dir);
-  dir = NULL;
 }
