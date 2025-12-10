@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <time.h>
 
 const char *storage_strerror(StorageError err) {
   switch (err) {
@@ -28,6 +29,13 @@ const char *storage_strerror(StorageError err) {
     return "storage failed to create directory";
   }
   return "unknown error";
+}
+
+//TODO: move this function
+void get_iso8601(char *buffer, size_t size) {
+    time_t now = time(NULL);
+    struct tm *t = gmtime(&now);
+    strftime(buffer, size, "%Y-%m-%dT%H:%M:%SZ", t);
 }
 
 StorageError storage_create_app_directory(void) {
@@ -89,7 +97,7 @@ StorageError storage_alloc_app_dir(const char **out_dir) {
   return STORAGE_OK;
 }
 
-StorageError storage_create_file(const char *filename) {
+StorageError storage_create_file(const char *filename, const char *text) {
   const char *appdir;
   StorageError err = storage_alloc_app_dir(&appdir);
   if (err != STORAGE_OK) {
@@ -104,11 +112,11 @@ StorageError storage_create_file(const char *filename) {
     return STORAGE_ERR_MALLOC_FAIL;
   }
 
-  snprintf(fullpath, path_len, "%s/%s", appdir, filename);
+  snprintf(fullpath, path_len, "%s/%s.txt", appdir, filename);
 
   storage_free_dir(appdir);
 
-  FILE *fptr = fopen(fullpath, "w");
+  FILE *fptr = fopen(fullpath, "a");
   free(fullpath);
   fullpath = NULL;
 
@@ -116,13 +124,15 @@ StorageError storage_create_file(const char *filename) {
     return STORAGE_ERR_NO_PERMISSION;
   }
 
-  fprintf(fptr, "base text");
+  char timestamp[32];
+
+  get_iso8601(timestamp, sizeof(timestamp));
+
+  fprintf(fptr, "%s\n%s\n", timestamp, text);
   fclose(fptr);
 
   return STORAGE_OK;
 }
-
-// StorageError storage_save_file(const char **out_dir) { return STORAGE_OK; }
 
 void storage_free_dir(const char *dir) {
   free((void *)dir);

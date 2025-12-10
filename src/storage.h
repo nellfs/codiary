@@ -18,7 +18,7 @@ StorageError storage_init(void);
 
 StorageError storage_alloc_app_dir(const char **out_dir);
 
-StorageError storage_create_file(const char *filename);
+StorageError storage_create_file(const char *filename, const char *text);
 
 // StorageError storage_save_file(const char **out_dir);
 

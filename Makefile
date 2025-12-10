@@ -4,7 +4,7 @@ CFLAGS = -Wall -Wextra -std=c17
 SRC = src/main.c src/storage.c
 OBJ = $(SRC:.c=.o)
 
-TARGET = codiary
+TARGET = dia
 
 all: $(TARGET)
 
