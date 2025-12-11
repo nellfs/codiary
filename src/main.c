@@ -28,6 +28,9 @@ int main(int argc, char **argv) {
   char *text = join_arguments(argc, argv);
 
   StorageError err = storage_append_diary_text(text);
+  if (err == STORAGE_ERR_NOT_FOUND) {
+      fprintf(stderr, "diary directory not found, have you created it? TODO\n");
+  }
   if (err != STORAGE_OK) {
     fprintf(stderr, "failed to create file: %s\n", storage_strerror(err));
   }

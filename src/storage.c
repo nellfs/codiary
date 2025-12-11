@@ -28,7 +28,7 @@ StorageError storage_get_dir(char *directory) {
 
   struct stat st;
   if (stat(directory, &st) == 0) {
-    return STORAGE_DIARY_DIR_ALREADY_CREATED;
+    return STORAGE_ERR_NOT_FOUND;
   }
   return STORAGE_OK;
 }
