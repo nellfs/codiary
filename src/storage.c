@@ -17,21 +17,18 @@ StorageError storage_get_dir(char *directory) {
 
   const char *suffix = "/.dia";
   if (strlen(cwd) + strlen(suffix) + 1 > PATH_MAX) {
-    fprintf(stderr, "Path too long\n");
     return STORAGE_ERR_PATH_TOO_LONG;
   }
 
-  char dia_dir[PATH_MAX];
-  int n = snprintf(dia_dir, sizeof(dia_dir), "%s/.dia", cwd);
+  int n = snprintf(directory, PATH_MAX, "%s/.dia", cwd);
 
-  if (n < 0 || n >= (int)sizeof(dia_dir)) {
-    fprintf(stderr, "path too long\n");
+  if (n < 0 || n >= PATH_MAX) {
     return STORAGE_ERR_PATH_TOO_LONG;
   }
 
-  if (access(dia_dir, F_OK) == 0) {
-    directory = dia_dir;
-    return STORAGE_DIR_ALREADY_CREATED;
+  struct stat st;
+  if (stat(directory, &st) == 0) {
+    return STORAGE_DIARY_DIR_ALREADY_CREATED;
   }
   return STORAGE_OK;
 }
@@ -59,52 +56,81 @@ StorageError storage_init(void) {
   return STORAGE_OK;
 }
 
-StorageError storage_append_diary_file(const char **out_dir) {
+StorageError storage_create_diary_file(void) {
+  char storage_dir[PATH_MAX];
+  StorageError err = storage_get_current_diary_file_dir(storage_dir);
+  if (err != STORAGE_OK) {
+    return err;
+  }
+
+  struct stat st;
+  if (stat(storage_dir, &st) == 0) {
+    return STORAGE_DIARY_FILE_ALREADY_CREATED;
+  }
+
+  FILE *fptr = fopen(storage_dir, "w");
+  if (!fptr) {
+    perror("fopen");
+    return STORAGE_FAILED_TO_CREATE_FILE;
+  }
+
+  fclose(fptr);
   return STORAGE_OK;
 }
 
-StorageError storage_get_current_diary_file(char *out_dir) {
+StorageError storage_append_diary_text(const char *text) {
+  char date[16];
+  StorageError datetime_err = datetime_get_current_date(date, sizeof(date));
+  if (datetime_err != STORAGE_OK) {
+    return datetime_err;
+  }
+
+  char filedir[PATH_MAX];
+  StorageError dir_err = storage_get_current_diary_file_dir(filedir);
+  if (dir_err != STORAGE_OK) {
+    return dir_err;
+  }
+
+  StorageError file_err = storage_create_diary_file();
+  if (file_err != STORAGE_OK &&
+      file_err != STORAGE_DIARY_FILE_ALREADY_CREATED) {
+    return file_err;
+  }
+
+  FILE *fptr = fopen(filedir, "a");
+
+  fprintf(fptr, "%s\n%s", date, text);
+
+  fclose(fptr);
+
+  return STORAGE_OK;
+}
+
+StorageError storage_get_current_diary_file_dir(char *out_dir) {
   char dia_dir[PATH_MAX];
 
   StorageError storage_err = storage_get_dir(dia_dir);
-  if (storage_err != STORAGE_OK && storage_err != STORAGE_DIR_ALREADY_CREATED) {
-     return storage_err;
+  if (storage_err != STORAGE_OK &&
+      storage_err != STORAGE_DIARY_DIR_ALREADY_CREATED) {
+    return storage_err;
   }
 
   char date[16];
   StorageError datetime_err = datetime_get_current_date(date, sizeof(date));
   if (datetime_err != STORAGE_OK) {
-     return datetime_err;
+    return datetime_err;
   }
-
 
   const char *extension = ".txt";
 
-  char fullpath[PATH_MAX];
+  int n = snprintf(out_dir, PATH_MAX, "%s/%s%s", dia_dir, date, extension);
 
-  snprintf(fullpath, sizeof(fullpath), "%s%s%s", dia_dir, date, extension);
+  if (n < 0 || n >= PATH_MAX) {
+    return STORAGE_ERR_PATH_TOO_LONG;
+  }
 
-  out_dir = fullpath;
   return STORAGE_OK;
 }
-
-// StorageError storage_append_diary_text(void) {
-//     FILE *fptr = fopen(fullpath, "a");
-//       free(fullpath);
-//       fullpath = NULL;
-
-//       if (!fptr) {
-//         return STORAGE_ERR_NO_PERMISSION;
-//       }
-
-//       char timestamp[32];
-//       get_iso8601(timestamp, sizeof(timestamp));
-
-//       fprintf(fptr, "%s\n%s", timestamp, text);
-//       fclose(fptr);
-
-//     return STORAGE_OK;
-// }
 
 void storage_free_dir(const char *dir) {
   free((void *)dir);
@@ -131,10 +157,14 @@ const char *storage_strerror(StorageError err) {
     return "storage permission error";
   case STORAGE_FAILED_TO_CREATE_DIRECTORY:
     return "storage failed to create directory";
+  case STORAGE_FAILED_TO_CREATE_FILE:
+    return "storage failed to create file";
   case STORAGE_ERR_GETCWD_FAILED:
     return "storage failed to get current directory";
-  case STORAGE_DIR_ALREADY_CREATED:
-    return "storage directory already created";
+  case STORAGE_DIARY_DIR_ALREADY_CREATED:
+    return "storage diary directory is already set";
+  case STORAGE_DIARY_FILE_ALREADY_CREATED:
+    return "storage diary file is already set";
   }
   return "unknown error";
 }

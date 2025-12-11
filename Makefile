@@ -1,7 +1,7 @@
 CC = gcc
 CFLAGS = -Wall -Wextra -std=c17
 
-SRC = src/main.c src/storage.c src/datetime.c
+SRC = src/main.c src/storage.c src/datetime.c src/cli.c
 OBJ = $(SRC:.c=.o)
 
 TARGET = dia
