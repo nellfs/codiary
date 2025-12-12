@@ -27,7 +27,7 @@ StorageError storage_get_dir(char *directory) {
   }
 
   struct stat st;
-  if (stat(directory, &st) == 0) {
+  if (stat(directory, &st) != 0) {
     return STORAGE_ERR_NOT_FOUND;
   }
   return STORAGE_OK;
@@ -36,7 +36,7 @@ StorageError storage_get_dir(char *directory) {
 StorageError storage_create_dir(void) {
   char dia_dir[PATH_MAX];
   StorageError err = storage_get_dir(dia_dir);
-  if (err != STORAGE_OK) {
+  if (err != STORAGE_OK && err != STORAGE_ERR_NOT_FOUND) {
     return err;
   }
 
@@ -73,17 +73,13 @@ StorageError storage_create_diary_file(void) {
     perror("fopen");
     return STORAGE_FAILED_TO_CREATE_FILE;
   }
-
   fclose(fptr);
   return STORAGE_OK;
 }
 
 StorageError storage_append_diary_text(const char *text) {
-  char date[16];
-  StorageError datetime_err = datetime_get_current_date(date, sizeof(date));
-  if (datetime_err != STORAGE_OK) {
-    return datetime_err;
-  }
+  char date[25];
+  datetime_get_iso8601(date, sizeof(date));
 
   char filedir[PATH_MAX];
   StorageError dir_err = storage_get_current_diary_file_dir(filedir);
@@ -99,7 +95,7 @@ StorageError storage_append_diary_text(const char *text) {
 
   FILE *fptr = fopen(filedir, "a");
 
-  fprintf(fptr, "%s\n%s", date, text);
+  fprintf(fptr, "%s\n%s\n", date, text);
 
   fclose(fptr);
 
@@ -116,10 +112,7 @@ StorageError storage_get_current_diary_file_dir(char *out_dir) {
   }
 
   char date[16];
-  StorageError datetime_err = datetime_get_current_date(date, sizeof(date));
-  if (datetime_err != STORAGE_OK) {
-    return datetime_err;
-  }
+  datetime_get_current_date(date, sizeof(date));
 
   const char *extension = ".txt";
 

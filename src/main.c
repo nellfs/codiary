@@ -20,6 +20,7 @@ int main(int argc, char **argv) {
     if (err != STORAGE_OK) {
       fprintf(stderr, "storage initialization error: %s\n",
               storage_strerror(err));
+      return 1;
     }
     printf("'.dia' created. you can write your diary\n");
     return 0;
@@ -29,9 +30,9 @@ int main(int argc, char **argv) {
 
   StorageError err = storage_append_diary_text(text);
   if (err == STORAGE_ERR_NOT_FOUND) {
-      fprintf(stderr, "diary directory not found, have you created it? TODO\n");
-  }
-  if (err != STORAGE_OK) {
+    fprintf(stderr,
+            "diary directory not found, have you created it? run `dia init`\n");
+  } else if (err != STORAGE_OK) {
     fprintf(stderr, "failed to create file: %s\n", storage_strerror(err));
   }
 
